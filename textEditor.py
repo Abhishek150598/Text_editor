@@ -3,26 +3,33 @@ from time import perf_counter
 
 class textEditor:
     
-    def __init__(self):
-        self.original_buffer = ""
+    def __init__(self, text = ""):
+        self.original_buffer = text
         self.add_buffer = ""
-        self.end_org = 0
+        self.end_org = len(text)
         self.end_add = 0
         self.piece_table = []
-        self.piece_tables = [[]]
+        if text:
+            self.piece_table.append({'filename': 'original', 'start': 0, 'length': len(text) })
+        self.piece_tables = [deepcopy(self.piece_table)]
         self.snaps = 0
         self.start_time = perf_counter()
-        
+ 
+    # Function to insert a string at a given index in the piece table       
     def insert(self, str, index):
         # If given index = end index
-        if index == self.end_org :
+        if index == len(self.getSequence()):
             
             if index == 0:
-                row = {'filename': 'original', 'start': 0, 'length': len(str) }
+                row = {'filename': 'original', 'start': self.end_org, 'length': len(str) }
                 self.piece_table.append(row)
             else:
                 l = len(self.piece_table)
-                self.piece_table[l - 1]['length'] += len(str)
+                if self.piece_table[l - 1]['start'] + self.piece_table[l - 1]['length'] == self.end_org:
+                    self.piece_table[l - 1]['length'] += len(str)
+                else:
+                    row = {'filename': 'original', 'start': self.end_org, 'length': len(str) }
+                    self.piece_table.append(row)
 
             self.original_buffer += str
             self.end_org += len(str)
@@ -65,6 +72,7 @@ class textEditor:
         
         return self.getSequence()
 
+    # Function to delete a portion of text in a given inex range
     def delete(self, index1, index2):
 
         current_index_1 = 0
@@ -100,16 +108,15 @@ class textEditor:
         for i in range(row_index + 1, row_index_2):
             self.piece_table.pop(i)
 
-        if self.piece_table[row_index]['length'] == 0:
-            self.piece_table.pop(row_index)
+        self.piece_table = self.piece_table[: row_index] + self.piece_table[row_index: ]
 
-        if self.piece_table[row_index_2]['length'] == 0:
-            self.piece_table.pop(row_index_2)
+        self.piece_table = list(filter(lambda x: x['length'] > 0, self.piece_table))
 
         self.storePieceTable()
 
         return self.getSequence()
 
+    # Function that archives the piece table every 2 seconds for undo/redo operation
     def storePieceTable(self):
         curr_time = perf_counter()
         if (curr_time - self.start_time) > 2.0:
@@ -118,7 +125,7 @@ class textEditor:
             self.piece_tables.append(deepcopy(self.piece_table))
             self.start_time = perf_counter()
 
-
+    # Function that returns the text stored in the piece table
     def getSequence(self):
         string = ""
         for row in self.piece_table:
@@ -131,18 +138,20 @@ class textEditor:
 
         return string
 
+    # Function that returns a portion of text stored in the piece table
     def getSubsequence(self, index1, index2):
         s = self.getSequence()
         return s[index1 : index2 + 1]
 
+    # Undo function
     def undo(self):
         if self.snaps > 0:
             self.snaps -= 1
             self.piece_table = self.piece_tables[self.snaps]
 
-        #print(self.snaps)
         return self.getSequence()
 
+    # Redo function
     def redo(self):
         try:
             self.piece_table = self.piece_tables[self.snaps + 1]
@@ -150,5 +159,4 @@ class textEditor:
         except:
             pass
 
-        print(self.snaps)
         return self.getSequence()
